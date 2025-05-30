@@ -43,26 +43,28 @@ You can use the provided shell script from within the cloned ml-depth-pro direct
 source get_pretrained_models.sh
 ```
 ###3. Install Required Python Packages
-This project requires ultralytics for YOLO object detection, opencv-python for image processing, Pillow and numpy. The ml-depth-pro model itself has its own dependencies which are usually covered by standard scientific Python packages (like PyTorch, torchvision - ensure these are installed, preferably in a virtual environment).
+This project requires ultralytics for YOLO object detection, opencv-python for image processing, Pillow and numpy. 
 Install ultralytics (which often brings in PyTorch and other essentials if not present):
 ```bash
 pip install ultralytics opencv-python Pillow numpy
 ```
-If you encounter issues with PyTorch, please refer to the official PyTorch website for installation instructions specific to your system and CUDA version (if applicable).
+
 ###4. Prepare Your Images (for batch_depth_estimation.py)
 Create a folder named input_images in your project directory.
 Place all the images you want to process into this input_images folder.
 ###5. Run the Scripts
 a) Single Image Test (depth_test.py)
 This script is typically for testing the setup with a single, hardcoded image path.
-You might need to modify the image_path variable inside depth_test.py to point to an image you want to test.
-Ensure the YOLO model (e.g., yolo11s.pt or yolov8s.pt) is available in the same directory or the path is correctly specified in the script. The script will attempt to download it if it's a standard Ultralytics model name.
-Run the script:
 ```bash
 python depth_test.py
 ```
+You might need to modify the image_path variable inside depth_test.py to point to an image you want to test.
+
+Ensure the YOLO model (e.g., yolo11s.pt or yolov8s.pt) is available in the same directory or the path is correctly specified in the script. The script will attempt to download it if it's a standard Ultralytics model name.
+Run the script:
+
 This will display the image with detected persons and their estimated depths, and also save an output image and a depth map.
 b) Batch Processing (batch_depth_estimation.py)
 This script processes all images from the input_images folder and saves the results (detection with depth overlay, and a separate depth colormap image) to an output_results folder.
-Ensure the INPUT_FOLDER and OUTPUT_FOLDER variables at the top of batch_depth_estimation.py are set correctly (default is input_images and output_results).
-Configure Object Detection:
+```bash
+python batch_depth_estimation.py
