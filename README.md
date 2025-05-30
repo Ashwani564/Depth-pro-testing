@@ -1,7 +1,4 @@
 # Depth-pro-testing
-# Depth Estimation with Object Detection (YOLO + ML-Depth-Pro)
-
-This project demonstrates how to combine the ML-Depth-Pro model from Apple for depth estimation with YOLO (You Only Look Once) for object detection. It allows you to identify objects (e.g., people, and other configurable classes) in an image and estimate their depth from the camera.
 
 ## Original Model
 
@@ -20,7 +17,6 @@ git clone https://github.com/apple/ml-depth-pro.git
 ```bash
 cd ml-depth-pro
 ```
-####Use code with caution.
 ###2. Download Pre-trained Depth Model Checkpoint
 The ml-depth-pro repository provides a script (get_pretrained_models.sh) to download the model checkpoint. This script uses wget.
 For Windows Users (or systems without wget/source readily available):
@@ -29,15 +25,13 @@ First, ensure you have a checkpoints directory in your ml-depth-pro (or project)
 ```bash
 mkdir checkpoints
 ```
-Use code with caution.
-Powershell
-Then, run the following command in PowerShell to download the depth_pro.pt file into the checkpoints directory:
+####Powershell
+Then, run the following command in mediocre PowerShell to download the depth_pro.pt file into the checkpoints directory:
 ```bash
 Invoke-WebRequest -Uri "https://ml-site.cdn-apple.com/models/depth-pro/depth_pro.pt" -OutFile "checkpoints\depth_pro.pt"
 ```
-Use code with caution.
-Powershell
-For Linux/macOS Users:
+
+####For Linux/macOS Users:
 You can use the provided shell script from within the cloned ml-depth-pro directory:
 ```bash
 source get_pretrained_models.sh
@@ -49,11 +43,11 @@ Install ultralytics (which often brings in PyTorch and other essentials if not p
 pip install ultralytics opencv-python Pillow numpy
 ```
 
-###4. Prepare Your Images (for batch_depth_estimation.py)
+##4. Prepare Your Images (for batch_depth_estimation.py)
 Create a folder named input_images in your project directory.
 Place all the images you want to process into this input_images folder.
 ###5. Run the Scripts
-a) Single Image Test (depth_test.py)
+###a) Single Image Test (depth_test.py)
 This script is typically for testing the setup with a single, hardcoded image path.
 ```bash
 python depth_test.py
@@ -64,7 +58,8 @@ Ensure the YOLO model (e.g., yolo11s.pt or yolov8s.pt) is available in the same 
 Run the script:
 
 This will display the image with detected persons and their estimated depths, and also save an output image and a depth map.
-b) Batch Processing (batch_depth_estimation.py)
+###b) Batch Processing (batch_depth_estimation.py)
 This script processes all images from the input_images folder and saves the results (detection with depth overlay, and a separate depth colormap image) to an output_results folder.
 ```bash
 python batch_depth_estimation.py
+```
