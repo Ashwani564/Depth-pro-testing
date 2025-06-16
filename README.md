@@ -4,15 +4,16 @@
   ![MixCollage-16-Jun-2025-01-17-AM-5312](https://github.com/user-attachments/assets/6cfb825a-965e-4ff0-93e7-c3275de7bbba)
   ![MixCollage-16-Jun-2025-01-19-AM-9262](https://github.com/user-attachments/assets/5c6f1cd7-46ef-428c-90d1-2b270df1c111)
   ### Trained Three Different Models (are available to Download on Hugging Face along with their performance metric):
-    1. YOLO 11S (MAP50 Accuracy: 88%): https://huggingface.co/Ashwani-0101/YOLO11S-Construction
-    2.YOLO 11M (MAP50 Accuracy: 90%): https://huggingface.co/Ashwani-0101/YOLOV11M-Construction
-    3. YOLO 11L (MAP50 Accuracy: 90%): https://huggingface.co/Ashwani-0101/Yolo11L-construction
-    4. I have integrated YOLO V11 M because of its significant inaccuracy in background along with faster inference than the large one.
+  1. YOLO 11S (MAP50 Accuracy: 88%): https://huggingface.co/Ashwani-0101/YOLO11S-Construction
+  2.YOLO 11M (MAP50 Accuracy: 90%): https://huggingface.co/Ashwani-0101/YOLOV11M-Construction
+  3. YOLO 11L (MAP50 Accuracy: 90%): https://huggingface.co/Ashwani-0101/Yolo11L-construction
+  4. I have integrated YOLO V11 M because of its significant inaccuracy in background along with faster inference than the large one.
 ### Changes in batch_depth_estimation:
-    1. Improved the processing speed by implementing the batch size processing
-    2. Integrated custom YOLO model for better detection
-    3. Fixed cuda problem
-    4. Implemented a method to label detection boxes as 1,2,3, making a side bar to mention the estimated depth.
+
+  1. Improved the processing speed by implementing the batch size processing
+  2. Integrated custom YOLO model for better detection
+  3. Fixed cuda problem
+  4. Implemented a method to label detection boxes as 1,2,3, making a side bar to mention the estimated depth.
   
   
 ## Update as of May 30, 2025
