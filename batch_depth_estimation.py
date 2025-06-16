@@ -8,11 +8,11 @@ import glob
 import torch # GPU: Import torch
 
 # --- Configuration ---
-INPUT_FOLDER = "input_images"
-OUTPUT_FOLDER = "output_results"
+INPUT_FOLDER = "input_images" # CHANGE THE FOLDER NAME
+OUTPUT_FOLDER = "output_results" # CHANGE THE FOLDER
 IMAGE_EXTENSIONS = ('*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff')
 LEGEND_WIDTH = 300
-BATCH_SIZE = 4 # Process 4 images at a time
+BATCH_SIZE = 4 # Process 4 images at a time # CHANGE THE BATCH SIZE 
 # --- End Configuration ---
 
 def process_batch(batch_paths, yolo_model, depth_model, transform, output_folder, device):
@@ -143,7 +143,8 @@ def main():
     print(f"Using device: {device}")
 
     print("Loading YOLO model...")
-    yolo_model_instance = YOLO(r'C:\Users\am5082\Documents\yolo-med\runs\detect\train\weights\best.pt')
+    # CHANGE THE PATH
+    yolo_model_instance = YOLO(r'C:\Users\%USERPROFILE%\Documents\yolo-med\runs\detect\train\weights\best.pt')
     yolo_model_instance.to(device)
     print("YOLO model loaded.")
 
