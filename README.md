@@ -17,7 +17,7 @@ git clone https://github.com/apple/ml-depth-pro.git
 ```bash
 cd ml-depth-pro
 ```
-###2. Download Pre-trained Depth Model Checkpoint
+### 2. Download Pre-trained Depth Model Checkpoint
 The ml-depth-pro repository provides a script (get_pretrained_models.sh) to download the model checkpoint. This script uses wget.
 For Windows Users (or systems without wget/source readily available):
 If you are on Windows, you can use PowerShell to download the pre-trained model directly.
@@ -25,7 +25,7 @@ First, ensure you have a checkpoints directory in your ml-depth-pro (or project)
 ```bash
 mkdir checkpoints
 ```
-####Powershell
+#### Powershell
 Then, run the following command in mediocre PowerShell to download the depth_pro.pt file into the checkpoints directory:
 ```bash
 Invoke-WebRequest -Uri "https://ml-site.cdn-apple.com/models/depth-pro/depth_pro.pt" -OutFile "checkpoints\depth_pro.pt"
@@ -36,7 +36,7 @@ You can use the provided shell script from within the cloned ml-depth-pro direct
 ```bash
 source get_pretrained_models.sh
 ```
-###3. Install Required Python Packages
+### 3. Install Required Python Packages
 This project requires ultralytics for YOLO object detection, opencv-python for image processing, Pillow and numpy. 
 Install ultralytics (which often brings in PyTorch and other essentials if not present):
 ```bash
