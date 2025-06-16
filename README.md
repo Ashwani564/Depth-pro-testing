@@ -31,7 +31,7 @@ Then, run the following command in mediocre PowerShell to download the depth_pro
 Invoke-WebRequest -Uri "https://ml-site.cdn-apple.com/models/depth-pro/depth_pro.pt" -OutFile "checkpoints\depth_pro.pt"
 ```
 
-####For Linux/macOS Users:
+#### For Linux/macOS Users:
 You can use the provided shell script from within the cloned ml-depth-pro directory:
 ```bash
 source get_pretrained_models.sh
@@ -43,11 +43,11 @@ Install ultralytics (which often brings in PyTorch and other essentials if not p
 pip install ultralytics opencv-python Pillow numpy
 ```
 
-##4. Prepare Your Images (for batch_depth_estimation.py)
+### 4. Prepare Your Images (for batch_depth_estimation.py)
 Create a folder named input_images in your project directory.
 Place all the images you want to process into this input_images folder.
 ###5. Run the Scripts
-###a) Single Image Test (depth_test.py)
+### a) Single Image Test (depth_test.py)
 This script is typically for testing the setup with a single, hardcoded image path.
 ```bash
 python depth_test.py
@@ -58,7 +58,7 @@ Ensure the YOLO model (e.g., yolo11s.pt or yolov8s.pt) is available in the same 
 Run the script:
 
 This will display the image with detected persons and their estimated depths, and also save an output image and a depth map.
-###b) Batch Processing (batch_depth_estimation.py)
+### b) Batch Processing (batch_depth_estimation.py)
 This script processes all images from the input_images folder and saves the results (detection with depth overlay, and a separate depth colormap image) to an output_results folder.
 ```bash
 python batch_depth_estimation.py
