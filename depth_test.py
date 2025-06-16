@@ -3,107 +3,188 @@ import depth_pro
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import os
+import glob
+import torch # GPU: Import torch
 
-yolo_model = YOLO('yolo11s.pt')
+# --- Configuration ---
+INPUT_FOLDER = "input_images"
+OUTPUT_FOLDER = "output_results"
+IMAGE_EXTENSIONS = ('*.jpg', '*.jpeg', '*.png', '*.bmp', '*.tiff')
+LEGEND_WIDTH = 300
+BATCH_SIZE = 4 # Process 4 images at a time
+# --- End Configuration ---
 
-image_path = "data/example.jpg"
+def process_batch(batch_paths, yolo_model, depth_model, transform, output_folder, device):
+    """
+    Processes a batch of images for object detection and depth estimation.
+    YOLO detection is run on the entire batch at once for efficiency.
+    """
+    # This set is defined here to be used for each image in the batch
+    CLASSES_TO_IGNORE = {"NO-Hardhat", "NO-Mask", "NO-Safety Vest", "Safety Vest", "Hardhat"}
 
+    # 1. Load all images in the batch
+    batch_images = []
+    valid_paths = []
+    for path in batch_paths:
+        img = cv2.imread(path)
+        if img is not None:
+            batch_images.append(img)
+            valid_paths.append(path)
+        else:
+            print(f"Error: Could not read image {path}, skipping.")
 
-yolo_input_img = cv2.imread(image_path) # Renamed to avoid confusion with depth_input
+    if not batch_images:
+        print("No valid images in this batch.")
+        return
 
-results = yolo_model(yolo_input_img)
+    # 2. Run batched YOLO object detection for performance
+    print(f"Running YOLO detection on a batch of {len(batch_images)} images...")
+    yolo_results_list = yolo_model(batch_images)
+    print("YOLO detection for batch complete.")
 
-person_boxes = []
-for result in results:
-    boxes = result.boxes.xyxy.cpu().numpy()
-    classes = result.boxes.cls.cpu().numpy()
+    # 3. Process and save each image in the batch individually
+    for i, yolo_results in enumerate(yolo_results_list):
+        image_path = valid_paths[i]
+        yolo_input_img = batch_images[i]
 
-    for box, cls in zip(boxes, classes):
-        if result.names[int(cls)] == 'person':
-            x1, y1, x2, y2 = map(int, box[:4])
-            person_boxes.append((x1, y1, x2, y2))
-            cv2.rectangle(yolo_input_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        print(f"--- Processing results for: {os.path.basename(image_path)} ---")
+        base_filename = os.path.basename(image_path)
+        name, ext = os.path.splitext(base_filename)
 
-# Load depth model and preprocessing transform
-depth_model, transform = depth_pro.create_model_and_transforms()
-depth_model.eval()
+        output_detection_path = os.path.join(output_folder, f"{name}_detection_depth{ext}")
+        output_depth_map_path = os.path.join(output_folder, f"{name}_depth_map{ext}")
 
-# It's better to load the image once for depth processing if it's the same as YOLO input
-# Assuming image_path is the same for both YOLO and depth
-image_for_depth, _, f_px = depth_pro.load_rgb(image_path)
-depth_input_transformed = transform(image_for_depth)
+        try:
+            img_h, img_w = yolo_input_img.shape[:2]
+            final_image = np.ones((img_h, img_w + LEGEND_WIDTH, 3), dtype=np.uint8) * 255
+            final_image[0:img_h, 0:img_w] = yolo_input_img
 
-prediction = depth_model.infer(depth_input_transformed, f_px=f_px)
-depth = prediction["depth"] # Depth in [m]
+            # Extract detected objects from the pre-computed YOLO results
+            detected_objects = []
+            boxes = yolo_results.boxes.xyxy.cpu().numpy()
+            classes = yolo_results.boxes.cls.cpu().numpy()
 
-depth_np = depth.squeeze().cpu().numpy()
+            for box, cls_idx in zip(boxes, classes):
+                class_name = yolo_results.names[int(cls_idx)]
+                if class_name in CLASSES_TO_IGNORE:
+                    continue  # Skip ignored classes
+                x1, y1, x2, y2 = map(int, box[:4])
+                detected_objects.append({'box': (x1, y1, x2, y2), 'name': class_name})
 
-# Ensure the depth map has the same dimensions as the yolo_input_img for coordinate mapping
-# If not, resizing might be needed, but for now, we assume they are compatible or
-# that the depth_pro.load_rgb and transform handle this.
-# For simplicity, let's assume depth_np has dimensions that can be indexed by coordinates from yolo_input_img.
-# If yolo_input_img was resized by YOLO internally, person_boxes coordinates might not directly map to original image/depth map.
-# However, the provided code implies direct mapping.
+            # Depth Estimation (still processed one-by-one)
+            image_for_depth, _, f_px = depth_pro.load_rgb(image_path)
+            depth_input_transformed = transform(image_for_depth).to(device)
+            prediction = depth_model.infer(depth_input_transformed, f_px=f_px)
+            depth = prediction["depth"]
+            depth_np = depth.squeeze().cpu().numpy()
 
-# Resize depth_np to match yolo_input_img dimensions if they are different
-# This is a common step if the depth model outputs a different resolution
-if depth_np.shape[0] != yolo_input_img.shape[0] or depth_np.shape[1] != yolo_input_img.shape[1]:
-    depth_np_resized = cv2.resize(depth_np, (yolo_input_img.shape[1], yolo_input_img.shape[0]), interpolation=cv2.INTER_NEAREST)
-else:
-    depth_np_resized = depth_np
+            if depth_np.shape[0] != img_h or depth_np.shape[1] != img_w:
+                depth_np_resized = cv2.resize(depth_np, (img_w, img_h), interpolation=cv2.INTER_NEAREST)
+            else:
+                depth_np_resized = depth_np
 
+            detection_id = 1
+            legend_y_start = 30
+            line_height = 25
 
-for x1, y1, x2, y2 in person_boxes:
-    center_x = (x1 + x2) // 2
-    center_y = (y1 + y2) // 2
+            for obj in detected_objects:
+                x1, y1, x2, y2 = obj['box']
+                class_name = obj['name']
+                cv2.rectangle(final_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-    # Ensure center coordinates are within the bounds of the resized depth map
-    center_y = np.clip(center_y, 0, depth_np_resized.shape[0] - 1)
-    center_x = np.clip(center_x, 0, depth_np_resized.shape[1] - 1)
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+                center_y = np.clip(center_y, 0, depth_np_resized.shape[0] - 1)
+                center_x = np.clip(center_x, 0, depth_np_resized.shape[1] - 1)
+                depth_value = depth_np_resized[center_y, center_x]
 
-    depth_value = depth_np_resized[center_y, center_x]
+                label_text = str(detection_id)
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.8
+                font_thickness = 2
+                text_size, _ = cv2.getTextSize(label_text, font, font_scale, font_thickness)
 
-    text = f'Depth: {depth_value:.2f}m'
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.6 # Adjusted for potentially smaller boxes or to avoid clutter
-    font_thickness = 1 # Adjusted
-    text_size, _ = cv2.getTextSize(text, font, font_scale, font_thickness) # Get text width and height
+                text_draw_x = x1
+                text_draw_y = y1 - 5
+                if text_draw_y < text_size[1]:
+                    text_draw_y = y1 + text_size[1] + 5
 
-    text_draw_x = x1
-    text_draw_y = y1 - 10
+                cv2.putText(final_image, label_text, (text_draw_x, text_draw_y), font, font_scale, (0, 0, 255), font_thickness)
 
-    # Adjust if text goes out of image bounds (top)
-    if text_draw_y < text_size[1] + 5: # text_size[1] is height of text
-        text_draw_y = y1 + text_size[1] + 10 # Place below the box if no space above
+                legend_text = f"{detection_id}: {class_name} - {depth_value:.2f}m"
+                legend_x_pos = img_w + 10
+                legend_y_pos = legend_y_start + (detection_id - 1) * line_height
+                cv2.putText(final_image, legend_text, (legend_x_pos, legend_y_pos), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
 
-    # Define rectangle background for text
-    rect_x1_bg = text_draw_x
-    rect_y1_bg = text_draw_y - text_size[1] - 5 # 5 pixels padding above text
-    rect_x2_bg = text_draw_x + text_size[0]
-    rect_y2_bg = text_draw_y + 5 # 5 pixels padding below text baseline
+                detection_id += 1
 
-    cv2.rectangle(yolo_input_img, (rect_x1_bg, rect_y1_bg), (rect_x2_bg, rect_y2_bg), (0, 0, 0), -1) # Black background
-    cv2.putText(yolo_input_img, text, (text_draw_x, text_draw_y), font, font_scale, (255, 255, 255), font_thickness) # White text
+            cv2.imwrite(output_detection_path, final_image)
+            print(f"Saved detection image to: {output_detection_path}")
 
-cv2.imshow('Person Detection with Depth', yolo_input_img)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+            depth_min_val = depth_np_resized.min()
+            depth_max_val = depth_np_resized.max()
+            if depth_max_val - depth_min_val > 0:
+                depth_np_normalized = (depth_np_resized - depth_min_val) / (depth_max_val - depth_min_val)
+            else:
+                depth_np_normalized = np.zeros_like(depth_np_resized)
 
-cv2.imwrite('person_detection_with_depth.jpg', yolo_input_img)
+            inv_depth_np_normalized = 1.0 - depth_np_normalized
+            depth_colormap = cv2.applyColorMap((inv_depth_np_normalized * 255).astype(np.uint8), cv2.COLORMAP_TURBO)
+            cv2.imwrite(output_depth_map_path, depth_colormap)
+            print(f"Saved depth map to: {output_depth_map_path}")
 
-# Normalize depth_np_resized for visualization (use the one that matches image dimensions)
-depth_min = depth_np_resized.min()
-depth_max = depth_np_resized.max()
-if depth_max - depth_min > 0: # Avoid division by zero
-    depth_np_normalized = (depth_np_resized - depth_min) / (depth_max - depth_min)
-else:
-    depth_np_normalized = np.zeros_like(depth_np_resized)
+        except Exception as e:
+            print(f"Error processing {image_path}: {e}")
 
+def main():
+    # GPU: Set the device to 'cuda' if available, otherwise 'cpu'
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(f"Using device: {device}")
 
-inv_depth_np_normalized = 1.0 - depth_np_normalized # Invert the normalized values
-depth_colormap = cv2.applyColorMap((inv_depth_np_normalized * 255).astype(np.uint8), cv2.COLORMAP_TURBO)
-cv2.imshow('Inverted Depth Map', depth_colormap)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+    print("Loading YOLO model...")
+    yolo_model_instance = YOLO(r'C:\Users\am5082\Documents\yolo-med\runs\detect\train\weights\best.pt')
+    yolo_model_instance.to(device)
+    print("YOLO model loaded.")
 
-cv2.imwrite('inverted_depth_map.jpg', depth_colormap)
+    print("Loading Depth Pro model and transforms...")
+    depth_model_instance, transform_instance = depth_pro.create_model_and_transforms()
+    depth_model_instance.to(device)
+    depth_model_instance.eval()
+    print("Depth Pro model and transforms loaded.")
+
+    if not os.path.exists(OUTPUT_FOLDER):
+        os.makedirs(OUTPUT_FOLDER)
+        print(f"Created output folder: {OUTPUT_FOLDER}")
+
+    image_files = []
+    for ext in IMAGE_EXTENSIONS:
+        image_files.extend(glob.glob(os.path.join(INPUT_FOLDER, ext)))
+
+    if not image_files:
+        print(f"No images found in {INPUT_FOLDER} with extensions {IMAGE_EXTENSIONS}")
+        return
+
+    print(f"Found {len(image_files)} images to process.")
+
+    # --- MODIFICATION: Loop through the images in batches ---
+    for i in range(0, len(image_files), BATCH_SIZE):
+        batch_paths = image_files[i:i + BATCH_SIZE]
+        print(f"\nProcessing batch {i // BATCH_SIZE + 1}...")
+        process_batch(batch_paths, yolo_model_instance, depth_model_instance, transform_instance, OUTPUT_FOLDER, device)
+
+    print("\nAll processing complete.")
+
+if __name__ == '__main__':
+    if not os.path.exists(INPUT_FOLDER):
+        os.makedirs(INPUT_FOLDER)
+        print(f"Created dummy input folder: {INPUT_FOLDER}")
+        try:
+            dummy_image = np.zeros((100, 100, 3), dtype=np.uint8)
+            cv2.imwrite(os.path.join(INPUT_FOLDER, "example.jpg"), dummy_image)
+            print(f"Created dummy image: {os.path.join(INPUT_FOLDER, 'example.jpg')}")
+            print(f"Please replace 'example.jpg' or add your images to the '{INPUT_FOLDER}' directory.")
+        except Exception as e:
+            print(f"Could not create dummy image: {e}. Please create the input folder and add images manually.")
+
+    main()
