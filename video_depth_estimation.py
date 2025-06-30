@@ -25,17 +25,21 @@ if IS_APPLE_SILICON:
 
 # --- Configuration ---
 LEGEND_WIDTH = 300
-YOLO_MODEL_PATH = '/Users/ashwani/Desktop/YOLOV11M-Construction/runs/detect/train/weights/best.pt'
+# IMPORTANT: Change this to the path of your small ('s') YOLO model
+YOLO_MODEL_PATH = '/Users/ashwani/Desktop/YOLOV11M-Construction/runs/detect/train/weights/best.pt'# UPDATE THIS
 CLASSES_TO_IGNORE = {"NO-Hardhat", "NO-Mask", "NO-Safety Vest", "Safety Vest", "Hardhat"}
 OUTPUT_FOLDER = "output_video"
 # --- End Configuration ---
 
 
 def main():
-    # --- 1. Argument Parsing ---
-    parser = argparse.ArgumentParser(description="Real-time Object Detection and Metric Depth Estimation.")
-    parser.add_argument("-i", "--input", type=str, help="Path to the input video file. If not specified, webcam will be used.")
+    # --- 1. Argument Parsing with Optimizations ---
+    parser = argparse.ArgumentParser(description="Run object detection and depth estimation on video.")
+    parser.add_argument("-i", "--input", type=str, help="Path to the input video file. If not specified, webcam is used.")
     parser.add_argument("-r", "--record", action='store_true', help="Enable recording of webcam feed. Ignored if --input is used.")
+    # --- OPTIMIZATION ARGUMENTS ---
+    parser.add_argument("--width", type=int, default=854, help="Resize frame to this width for processing. Set to 0 for original resolution. Default: 854.")
+    parser.add_argument("--frame-skip", type=int, default=5, help="Process 1 frame and skip N-1 frames. Set to 1 to process every frame. Default: 5.")
     args = parser.parse_args()
 
     # --- Device Selection ---
@@ -70,61 +74,80 @@ def main():
         print("Opening webcam...")
         if args.record:
             print("Webcam recording is ENABLED.")
+            
+    print(f"--- Performance Settings ---")
+    print(f"Processing every {args.frame_skip} frames.")
+    if args.width > 0:
+        print(f"Processing at {args.width}px width resolution.")
+    else:
+        print("Processing at original resolution.")
+    print("--------------------------")
+
 
     cap = cv2.VideoCapture(input_source)
     if not cap.isOpened():
         print(f"Error: Could not open video source '{input_source}'.")
         return
 
-    # Video Writer Initialization (if recording or processing a file)
+    # --- Video Writer Initialization (uses original video dimensions) ---
     writer = None
     depth_writer = None
+    original_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    original_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
     if is_recording:
         os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-        frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        
-        # Use source FPS for video files, or a default for webcams
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        if fps == 0:
-            fps = 20 # A reasonable default for webcams
-            print(f"Warning: Could not determine webcam FPS. Defaulting to {fps} FPS for recording.")
-
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v') # Codec for .mp4 files
+        fps = cap.get(cv2.CAP_PROP_FPS) if is_video_file else 20
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         
         if is_video_file:
             base_name = os.path.basename(args.input)
             name, _ = os.path.splitext(base_name)
             output_path = os.path.join(OUTPUT_FOLDER, f"{name}_processed.mp4")
             depth_output_path = os.path.join(OUTPUT_FOLDER, f"{name}_depth_map.mp4")
-        else: # Recording from webcam
+        else:
             timestr = time.strftime("%Y%m%d-%H%M%S")
             output_path = os.path.join(OUTPUT_FOLDER, f"webcam_{timestr}_processed.mp4")
             depth_output_path = os.path.join(OUTPUT_FOLDER, f"webcam_{timestr}_depth_map.mp4")
 
-        writer = cv2.VideoWriter(output_path, fourcc, fps, (frame_w + LEGEND_WIDTH, frame_h))
-        depth_writer = cv2.VideoWriter(depth_output_path, fourcc, fps, (frame_w, frame_h))
+        # The writers are created with the *original* video dimensions
+        writer = cv2.VideoWriter(output_path, fourcc, fps, (original_w + LEGEND_WIDTH, original_h))
+        depth_writer = cv2.VideoWriter(depth_output_path, fourcc, fps, (original_w, original_h))
         print(f"Saving processed video to: {output_path}")
         print(f"Saving depth map video to: {depth_output_path}")
 
     # --- 3. Processing Loop ---
-    prev_time = 0
     pbar = None
     if is_video_file:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         pbar = tqdm(total=total_frames, desc="Processing Video")
 
+    frame_count = 0
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        current_time = time.time()
-        img_h, img_w = frame.shape[:2]
+        frame_count += 1
+        
+        # --- OPTIMIZATION 1: Frame Skipping ---
+        if frame_count % args.frame_skip != 0:
+            if pbar: pbar.update(1) # Ensure progress bar moves even on skipped frames
+            continue
 
-        # --- Model Inference (same as before) ---
-        yolo_results = yolo_model(frame, device=device, verbose=False)[0]
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # --- OPTIMIZATION 2: Resolution Reduction ---
+        if args.width > 0:
+            aspect_ratio = frame.shape[0] / frame.shape[1]
+            new_h = int(args.width * aspect_ratio)
+            processing_frame = cv2.resize(frame, (args.width, new_h), interpolation=cv2.INTER_AREA)
+        else:
+            processing_frame = frame
+
+        img_h, img_w = processing_frame.shape[:2]
+
+        # --- Model Inference (runs on the smaller `processing_frame`) ---
+        yolo_results = yolo_model(processing_frame, device=device, verbose=False)[0]
+        rgb_frame = cv2.cvtColor(processing_frame, cv2.COLOR_BGR2RGB)
         pil_image = Image.fromarray(rgb_frame)
         depth_input_transformed = transform(pil_image).unsqueeze(0).to(device)
         f_px_tensor = torch.tensor([float(img_w)], device=device)
@@ -135,71 +158,59 @@ def main():
         depth_np = prediction["depth"].squeeze().cpu().numpy()
         depth_np_resized = cv2.resize(depth_np, (img_w, img_h), interpolation=cv2.INTER_NEAREST)
 
-        # --- Visualization (same as before) ---
+        # --- Visualization (drawn on the smaller frame) ---
         final_image = np.ones((img_h, img_w + LEGEND_WIDTH, 3), dtype=np.uint8) * 255
-        final_image[0:img_h, 0:img_w] = frame
-
+        final_image[0:img_h, 0:img_w] = processing_frame
+        
+        # ... (drawing logic is the same, but operates on smaller coordinates) ...
         boxes = yolo_results.boxes.xyxy.cpu().numpy()
         classes = yolo_results.boxes.cls.cpu().numpy()
-        
         detection_id = 1
-        legend_y_start = 50
-        line_height = 25
         for box, cls_idx in zip(boxes, classes):
-            class_name = yolo_results.names[int(cls_idx)]
-            if class_name in CLASSES_TO_IGNORE:
-                continue
-            x1, y1, x2, y2 = map(int, box[:4])
+            class_name = yolo_model.names[int(cls_idx)]
+            if class_name in CLASSES_TO_IGNORE: continue
+            x1, y1, x2, y2 = map(int, box)
             cv2.rectangle(final_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
             center_x = np.clip((x1 + x2) // 2, 0, img_w - 1)
             center_y = np.clip((y1 + y2) // 2, 0, img_h - 1)
             depth_value = depth_np_resized[center_y, center_x]
-            label_text = str(detection_id)
-            cv2.putText(final_image, label_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            cv2.putText(final_image, str(detection_id), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
             legend_text = f"{detection_id}: {class_name} - {depth_value:.2f}m"
-            cv2.putText(final_image, legend_text, (img_w + 10, legend_y_start + (detection_id - 1) * line_height), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
+            cv2.putText(final_image, legend_text, (img_w + 10, 50 + (detection_id - 1) * 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1)
             detection_id += 1
 
-        # Depth Map Colormap
         depth_min, depth_max = depth_np_resized.min(), depth_np_resized.max()
         if depth_max - depth_min > 0:
             inv_depth_normalized = 1.0 - (depth_np_resized - depth_min) / (depth_max - depth_min)
             depth_colormap = cv2.applyColorMap((inv_depth_normalized * 255).astype(np.uint8), cv2.COLORMAP_TURBO)
         else:
-            depth_colormap = np.zeros_like(frame)
+            depth_colormap = np.zeros_like(processing_frame)
 
         # --- 4. Output Handling ---
-        # Write to file if recording is enabled
         if is_recording:
-            writer.write(final_image)
-            depth_writer.write(depth_colormap)
+            # Resize the final outputs BACK UP to the original video dimensions for saving
+            output_frame = cv2.resize(final_image, (original_w + LEGEND_WIDTH, original_h))
+            output_depth = cv2.resize(depth_colormap, (original_w, original_h))
+            writer.write(output_frame)
+            depth_writer.write(output_depth)
         
-        # Display preview if not processing a file
         if not is_video_file:
-            fps = 1 / (current_time - prev_time)
-            prev_time = current_time
-            cv2.putText(final_image, f"FPS: {int(fps)}", (img_w + 10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-            cv2.imshow('Real-time Depth Detection', final_image)
+            cv2.imshow('Real-time Depth Detection', final_image) # Show the smaller, faster preview
             cv2.imshow('Depth Map', depth_colormap)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         
-        if pbar:
-            pbar.update(1)
+        if pbar: pbar.update(1)
 
     # --- 5. Cleanup ---
     print("\nClosing application...")
-    if pbar:
-        pbar.close()
+    if pbar: pbar.close()
     cap.release()
-    if writer:
-        writer.release()
-    if depth_writer:
-        depth_writer.release()
+    if writer: writer.release()
+    if depth_writer: depth_writer.release()
     cv2.destroyAllWindows()
     print("Resources released.")
 
 
 if __name__ == '__main__':
-    # You might need to install tqdm: pip install tqdm
     main()
