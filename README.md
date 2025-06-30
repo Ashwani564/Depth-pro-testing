@@ -1,5 +1,10 @@
 # Depth-pro-testing
 This project integrates a custom-trained YOLOv11 model with Apple's ML-Depth-Pro for depth estimation in images, focusing on construction site scenarios.
+## Update As Of June 30, 2025 (Incomplete info; will fill later):
+```
+python video_depth_estimation.py --input input_video/video.mp4 --width 640 --frame-skip 10
+```
+
 ## Update As of June 16, 2025 (for past two weeks):
 ### Successful training and integration of Custom YOLO Model:
   ![MixCollage-16-Jun-2025-01-17-AM-5312](https://github.com/user-attachments/assets/6cfb825a-965e-4ff0-93e7-c3275de7bbba)
