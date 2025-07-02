@@ -12,7 +12,7 @@ python video_depth_estimation.py --input input_video/video.mp4 --width 640 --fra
 ```
 
 ### Flask Integration:
-Find more info here: 
+Find more info here: https://github.com/Ashwani564/ml-depth-pro-flask/tree/main
 
 ## Update As of June 16, 2025 (for past two weeks):
 ### Successful training and integration of Custom YOLO Model:
