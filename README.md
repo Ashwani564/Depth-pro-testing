@@ -1,9 +1,17 @@
 # Depth-pro-testing
 This project integrates a custom-trained YOLOv11 model with Apple's ML-Depth-Pro for depth estimation in images, focusing on construction site scenarios.
 ## Update As Of June 30, 2025 (Incomplete info; will fill later):
+### Video Integration
+
+![video_processed-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/1ab6d2b4-6bdb-4d12-9047-f26f86fecdff)
+Use below command to run the video capability
+
 ```
 python video_depth_estimation.py --input input_video/video.mp4 --width 640 --frame-skip 10
 ```
+
+### Flask Integration:
+Find more info here: 
 
 ## Update As of June 16, 2025 (for past two weeks):
 ### Successful training and integration of Custom YOLO Model:
