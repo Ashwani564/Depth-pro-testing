@@ -4,6 +4,7 @@ This project integrates a custom-trained YOLOv11 model with Apple's ML-Depth-Pro
 ### Video Integration
 
 ![video_processed-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/1ab6d2b4-6bdb-4d12-9047-f26f86fecdff)
+
 Use below command to run the video capability
 
 ```
