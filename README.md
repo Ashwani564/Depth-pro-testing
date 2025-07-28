@@ -1,5 +1,19 @@
 # Depth-pro-testing
 This project integrates a custom-trained YOLOv11 model with Apple's ML-Depth-Pro for depth estimation in images, focusing on construction site scenarios.
+## For RTX 5090 Testing
+Please follow the below instructions to setup the file. I have made changes into video_depth_estimation with the script I worked on last few weeks. Please follow the below commands to run:
+```
+python video_depth_estimation.py --input input_video/video.mp4 --width 640 --frame-skip 10
+```
+Above function processes only 10% of frames.
+For real time inference:
+```
+python video_depth_estimation.py --input input_video/video.mp4 --width 640 
+```
+Use below for recording real time:
+```
+python3 video_depth_estimation.py -r --frame-skip 5 --width 640
+```
 ## Update As Of June 30, 2025:
 ### Video Integration
 
