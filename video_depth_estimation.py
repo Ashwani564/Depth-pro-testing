@@ -25,7 +25,7 @@ if IS_APPLE_SILICON:
 
 # --- Configuration (No changes) ---
 LEGEND_WIDTH = 300
-# IMPORTANT: Consider using yolov8n.pt for maximum speed
+
 YOLO_MODEL_PATH = '/Users/ashwani/Desktop/YOLOV11M-Construction/runs/detect/train/weights/best.pt'
 CLASSES_TO_IGNORE = {"NO-Hardhat", "NO-Mask", "NO-Safety Vest", "Safety Vest", "Hardhat"}
 OUTPUT_FOLDER = "output_video"
